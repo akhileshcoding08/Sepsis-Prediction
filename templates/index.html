@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sepsis Early-Warning Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0f1a;
+    --panel:#111a2b;
+    --panel-2:#0d1522;
+    --line:#1f2c42;
+    --text:#e7edf7;
+    --muted:#8a97ae;
+    --cyan:#43d9d9;
+    --cyan-dim:#1f5c5c;
+    --low:#4ade80;
+    --moderate:#fbbf24;
+    --high:#fb923c;
+    --critical:#f87171;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% -10%, #12203a 0%, transparent 45%),
+      radial-gradient(circle at 100% 0%, #14212f 0%, transparent 40%),
+      var(--bg);
+    color:var(--text);
+    font-family:'Inter', -apple-system, sans-serif;
+    min-height:100vh;
+    padding:28px 20px 60px;
+  }
+  .wrap{max-width:1100px;margin:0 auto;}
+
+  /* ---- header / monitor strip ---- */
+  header{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:16px;flex-wrap:wrap;margin-bottom:18px;
+  }
+  .brand{display:flex;align-items:center;gap:12px;}
+  .brand .dot{
+    width:11px;height:11px;border-radius:50%;
+    background:var(--cyan);box-shadow:0 0 10px var(--cyan), 0 0 22px var(--cyan);
+    animation:pulse-dot 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse-dot{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .brand h1{font-size:18px;margin:0;letter-spacing:.02em;font-weight:700;}
+  .brand p{margin:0;color:var(--muted);font-size:12.5px;}
+  .badge{
+    font-family:'JetBrains Mono', monospace;
+    font-size:11.5px;color:var(--cyan);
+    background:rgba(67,217,217,.08);
+    border:1px solid rgba(67,217,217,.28);
+    padding:6px 12px;border-radius:999px;
+    white-space:nowrap;
+  }
+
+  .monitor{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:0;overflow:hidden;
+    margin-bottom:26px;
+    position:relative;
+  }
+  .monitor .scanline{
+    position:absolute;inset:0;pointer-events:none;
+    background:linear-gradient(180deg, transparent 0%, rgba(67,217,217,.03) 50%, transparent 100%);
+  }
+  svg#ecg{display:block;width:100%;height:96px;}
+  #ecgPath{
+    fill:none;stroke:var(--cyan);stroke-width:2;
+    stroke-linecap:round;stroke-linejoin:round;
+    filter:drop-shadow(0 0 6px var(--cyan-glow, rgba(67,217,217,.6)));
+    transition:stroke .5s ease;
+  }
+  .risk-low #ecgPath{stroke:var(--low);--cyan-glow:rgba(74,222,128,.55);}
+  .risk-moderate #ecgPath{stroke:var(--moderate);--cyan-glow:rgba(251,191,36,.55);}
+  .risk-high #ecgPath{stroke:var(--high);--cyan-glow:rgba(251,146,60,.55);}
+  .risk-critical #ecgPath{stroke:var(--critical);--cyan-glow:rgba(248,113,113,.55);}
+
+  /* ---- layout ---- */
+  .grid{display:grid;grid-template-columns:1fr;gap:20px;}
+  @media(min-width:920px){.grid{grid-template-columns:2fr 1fr;align-items:start;}}
+
+  .card{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:22px 22px 8px;
+    margin-bottom:20px;
+  }
+  .card h2{
+    font-size:13px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);margin:0 0 16px;font-weight:600;
+    display:flex;align-items:center;gap:8px;
+  }
+  .card h2 .tag{color:var(--cyan);}
+
+  .field-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
+    gap:14px 14px;margin-bottom:14px;
+  }
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:12px;color:var(--text);font-weight:500;}
+  .field .hint{font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',monospace;}
+  .field input{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:9px 10px;
+    color:var(--text);
+    font-family:'JetBrains Mono', monospace;
+    font-size:13px;
+    outline:none;
+    transition:border-color .15s, box-shadow .15s;
+  }
+  .field input::placeholder{color:#54617a;}
+  .field input:focus{
+    border-color:var(--cyan);
+    box-shadow:0 0 0 3px rgba(67,217,217,.12);
+  }
+
+  .submit-row{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:14px;flex-wrap:wrap;
+    padding:16px 2px 22px;
+  }
+  .submit-row p{margin:0;color:var(--muted);font-size:12px;max-width:420px;}
+  button.run{
+    background:linear-gradient(135deg, var(--cyan), #2b9d9d);
+    color:#04211f;font-weight:700;font-size:14px;
+    border:none;border-radius:10px;
+    padding:13px 26px;cursor:pointer;
+    box-shadow:0 6px 22px -6px rgba(67,217,217,.55);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  button.run:hover{transform:translateY(-1px);box-shadow:0 10px 26px -6px rgba(67,217,217,.7);}
+  button.run:active{transform:translateY(0);}
+
+  /* ---- result panel ---- */
+  .result-panel{
+    position:sticky;top:20px;
+  }
+  .readout{
+    text-align:center;padding:26px 18px 22px;
+  }
+  .readout .pct{
+    font-family:'JetBrains Mono', monospace;
+    font-size:56px;font-weight:700;line-height:1;
+    letter-spacing:-.02em;
+  }
+  .readout .pct sup{font-size:22px;font-weight:500;opacity:.7;}
+  .readout .tier{
+    display:inline-block;margin-top:12px;
+    padding:6px 16px;border-radius:999px;
+    font-size:12.5px;font-weight:700;letter-spacing:.03em;text-transform:uppercase;
+  }
+  .risk-low .pct, .risk-low .tier{color:var(--low);}
+  .risk-low .tier{background:rgba(74,222,128,.12);border:1px solid rgba(74,222,128,.4);}
+  .risk-moderate .pct, .risk-moderate .tier{color:var(--moderate);}
+  .risk-moderate .tier{background:rgba(251,191,36,.12);border:1px solid rgba(251,191,36,.4);}
+  .risk-high .pct, .risk-high .tier{color:var(--high);}
+  .risk-high .tier{background:rgba(251,146,60,.12);border:1px solid rgba(251,146,60,.4);}
+  .risk-critical .pct, .risk-critical .tier{color:var(--critical);}
+  .risk-critical .tier{background:rgba(248,113,113,.12);border:1px solid rgba(248,113,113,.4);}
+
+  .gauge{height:10px;border-radius:999px;background:var(--panel-2);
+    border:1px solid var(--line);overflow:hidden;margin:18px 4px 6px;position:relative;}
+  .gauge-fill{height:100%;border-radius:999px;transition:width .8s cubic-bezier(.2,.8,.2,1);}
+  .risk-low .gauge-fill{background:var(--low);}
+  .risk-moderate .gauge-fill{background:var(--moderate);}
+  .risk-high .gauge-fill{background:var(--high);}
+  .risk-critical .gauge-fill{background:var(--critical);}
+  .gauge-labels{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);
+    font-family:'JetBrains Mono',monospace;padding:0 4px;}
+
+  .placeholder-result{
+    padding:34px 20px;text-align:center;color:var(--muted);
+  }
+  .placeholder-result .icon{font-size:30px;margin-bottom:10px;opacity:.6;}
+  .placeholder-result p{font-size:13px;line-height:1.5;margin:0;}
+
+  .meta-line{
+    display:flex;justify-content:space-between;padding:10px 4px 0;
+    font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;
+    border-top:1px dashed var(--line);margin-top:16px;
+  }
+
+  footer{margin-top:8px;text-align:center;color:var(--muted);font-size:11.5px;}
+  footer a{color:var(--cyan);text-decoration:none;}
+
+  .note{
+    font-size:11px;color:var(--muted);padding:2px 2px 14px;
+  }
+</style>
+</head>
+<body class="{{ result.tier_class if result else '' }}">
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <span class="dot"></span>
+      <div>
+        <h1>Sepsis Early-Warning Monitor</h1>
+      </div>
+    </div>
+    <span class="badge">MODEL: {{ model_name }} · ROC-AUC {{ metrics.roc_auc }} · PR-AUC {{ metrics.pr_auc }}</span>
+  </header>
+
+  <div class="monitor">
+    <div class="scanline"></div>
+    <svg id="ecg" viewBox="0 0 1200 96" preserveAspectRatio="none">
+      <path id="ecgPath" d=""></path>
+    </svg>
+  </div>
+
+  <form method="POST" action="/">
+    <div class="grid">
+      <div>
+        <div class="card">
+          <h2><span class="tag">01</span> Vital Signs</h2>
+          <div class="field-grid">
+            {% for f in vital_fields %}
+            <div class="field">
+              <label for="{{ f.name }}">{{ f.label }}</label>
+              <input type="number" step="{{ f.step }}" id="{{ f.name }}" name="{{ f.name }}"
+                     placeholder="{{ f.default }}"
+                     value="{{ submitted_values.get(f.name, '') }}">
+              <span class="hint">{{ f.unit }}{% if f.range %} &middot; normal {{ f.range }}{% endif %}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="card">
+          <h2><span class="tag">02</span> Labs</h2>
+          <div class="field-grid">
+            {% for f in lab_fields %}
+            <div class="field">
+              <label for="{{ f.name }}">{{ f.label }}</label>
+              <input type="number" step="{{ f.step }}" id="{{ f.name }}" name="{{ f.name }}"
+                     placeholder="{{ f.default }}"
+                     value="{{ submitted_values.get(f.name, '') }}">
+              <span class="hint">{{ f.unit }}{% if f.range %} &middot; normal {{ f.range }}{% endif %}</span>
+            </div>
+            {% endfor %}
+          </div>
+        </div>
+
+        <div class="card">
+          <h2><span class="tag">03</span> Patient &amp; Encounter</h2>
+          <div class="field-grid">
+            {% for f in demo_fields %}
+            <div class="field">
+              <label for="{{ f.name }}">{{ f.label }}</label>
+              <input type="number" step="{{ f.step }}" id="{{ f.name }}" name="{{ f.name }}"
+                     placeholder="{{ f.default }}"
+                     value="{{ submitted_values.get(f.name, '') }}">
+              <span class="hint">{{ f.unit }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          <div class="submit-row">
+            <button class="run" type="submit">Run Assessment</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="result-panel">
+        <div class="card" style="padding:0;">
+          {% if result %}
+          <div class="readout">
+            <div class="pct">{{ result.probability }}<sup>%</sup></div>
+            <div class="hint" style="margin-top:4px;">Predicted Sepsis Probability</div>
+            <div class="tier">{{ result.tier }}</div>
+            <div class="gauge"><div class="gauge-fill" style="width:{{ result.probability }}%;"></div></div>
+            <div class="gauge-labels"><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div>
+            <div class="meta-line">
+              <span>MODEL</span><span>{{ model_name }}</span>
+            </div>
+          </div>
+          {% else %}
+          <div class="placeholder-result">
+            <div class="icon">⌁</div>
+            <p>Enter available vitals and labs, then run the assessment.<br>Unfilled fields are imputed with population medians.</p>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Animated ECG-style waveform in the header monitor strip.
+  (function(){
+    const path = document.getElementById('ecgPath');
+    const width = 1200, height = 96, mid = height/2;
+    let offset = 0;
+
+    function beatSegment(x0){
+      // baseline -> small p wave -> sharp QRS spike -> t wave -> baseline
+      return [
+        [x0,       mid],
+        [x0+14,    mid],
+        [x0+20,    mid-6],
+        [x0+26,    mid],
+        [x0+34,    mid],
+        [x0+40,    mid+14],
+        [x0+46,    mid-38],
+        [x0+52,    mid+18],
+        [x0+58,    mid],
+        [x0+70,    mid],
+        [x0+82,    mid-10],
+        [x0+94,    mid],
+        [x0+130,   mid],
+      ];
+    }
+
+    function buildPath(shift){
+      let pts = [];
+      for(let x=-140; x<width+140; x+=130){
+        pts = pts.concat(beatSegment(x));
+      }
+      let d = 'M ' + pts.map(p=>[(p[0]-shift).toFixed(1), p[1].toFixed(1)].join(',')).join(' L ');
+      return d;
+    }
+
+    function tick(){
+      offset += 2.4;
+      if(offset > 130) offset -= 130;
+      path.setAttribute('d', buildPath(offset));
+      requestAnimationFrame(tick);
+    }
+    tick();
+  })();
+</script>
+</body>
+</html>
